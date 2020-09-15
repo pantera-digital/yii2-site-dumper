@@ -1,0 +1,15 @@
+{
+    "require": {
+        "php": "^7.2",
+        "ext-curl": "*",
+        "yiisoft/yii2": "~2.0.0",
+        "linslin/yii2-curl": "*",
+        "omnilight/yii2-scheduling": "*"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ]
+}
