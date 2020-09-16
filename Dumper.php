@@ -1,11 +1,10 @@
 <?php
 
-namespace app\models;
+namespace app;
 
-use \Exception;
-use \DateTime;
-use \Yii;
-use \linslin\yii2\curl\Curl;
+use DateTime;
+use Yii;
+use linslin\yii2\curl\Curl;
 
 /**
  * Модель для выгрузки страниц в автономное хранилище
@@ -26,7 +25,7 @@ use \linslin\yii2\curl\Curl;
  * 2. Исправить обработку ссылки: zakupki.gov.ru/data/common-info.html?regNumber=0816500000619001511
  * 4. Конструкцию <base> надо доработать на проверку уже существующего тега
  */
-class Dump extends \yii\base\Component
+class Dumper extends \yii\base\Component
 {
     /**
      * Глубина поиска страниц относительно первичной
@@ -252,19 +251,9 @@ class Dump extends \yii\base\Component
             // Добавление стартовой ссылки в регистр
             array_unshift($this->links, $link);
 
-            // Инициализация цели в статистике
-            // if (YII_DEBUG) {
-                $this->statistics[0] = $this->target;
-            // }
-
-            // Прибавление стартовой ссылки для вывода в статистике
-            // if (YII_DEBUG) {
-                // if (!isset($this->statistics[2][1])) {
-                //     $this->statistics[2][1] = 0;
-                // }
-                // $this->statistics[2][1]++;
-                $this->statistics[2][1] = 1;
-            // }
+            // Инициализация данных для статистики
+            $this->statistics[0] = $this->target;
+            $this->statistics[2][1] = 1;
         } else if ($this->subdownload && $depth === 0) {
             // Иначе если это дополнительное скачивание и глубина равна нулю
 
@@ -290,11 +279,9 @@ class Dump extends \yii\base\Component
             $request = ($this->connectionProtocol ?? 'http') . '://' . ($targetMatch[3][0] ?? $this->connectionHost) . $link;
         } else if (preg_match('/(^[^\/\\\\\s\.]+(\/|\\\|$)([^\/\\\\\s]*$|[^\/\\\\\s]+(\/|\\\).*))/', $link)) {
             // Паттерн: 'foo/index.html', 'foo/bar/index.html', 'foo', 'foo/'
-            // Не помню почему регулярное выражение такое сложное, разбираться сейчас не стал, так как главное, что работает
             $request = ($this->connectionProtocol ?? 'http') . '://' . ($targetMatch[3][0] ?? $this->connectionHost) . '/' . $link;
         } else {
             unset($this->links[$link]);
-            // throw new Exception('Не удалось идентифицировать запрос');
             return $this;
         }
         unset($match); // Очистка на всякий случай, так как переменные остаются
@@ -332,9 +319,7 @@ class Dump extends \yii\base\Component
             $this->linksNew += count($match[2]);
 
             // Прибавление количества новых ссылок для вывода в статистике
-            // if (YII_DEBUG) {
-                $this->statistics[2][0] += count($match[2]);
-            // }
+            $this->statistics[2][0] += count($match[2]);
 
             // Добавление ссылок в общий регистр
             foreach ($match[2] as $link) {
@@ -408,15 +393,9 @@ class Dump extends \yii\base\Component
                 $this->links[$link][1] = '/' . $this->links[$link][1];
             }
 
-            // if (!isset($this->links[$link])) {
-            //     $this->convertLinks();
-            // }
-
             // Проверка существования каталога и его создание 
-            if (/** isset($this->links[$link] && */ !file_exists(Yii::$app->params['basePath'] . $this->links[$link][1])) {
-                if (!mkdir(Yii::$app->params['basePath'] . $this->links[$link][1], 0755, true)) {
-                    // throw new Exception('Не удалось создать каталог');
-                }
+            if (!file_exists(Yii::$app->params['basePath'] . $this->links[$link][1])) {
+                mkdir(Yii::$app->params['basePath'] . $this->links[$link][1], 0755, true);
             }
 
             // Сохранение файла
@@ -424,8 +403,6 @@ class Dump extends \yii\base\Component
                 if (file_put_contents(Yii::$app->params['basePath'] . $this->links[$link][1] . $this->links[$link][0], $file[1])) {
                     $this->files[$link][0] = $file[0];
                     $this->files[$link][1] = $file[1];
-                } else {
-                    // throw new Exception('Не удалось сохранить файл');
                 }
             }
             $savedFiles[$link] = $files[$link];
@@ -434,9 +411,7 @@ class Dump extends \yii\base\Component
         unset($link, $file); // Очистка на всякий случай, так как переменные остаются
 
         // Указание сборщику статистики, что парсер успешно завершил свою работу
-        // if (YII_DEBUG) {
-            $this->statistics[1] = 0;
-        // }
+        $this->statistics[1] = 0;
 
         return $savedFiles;
     }
@@ -479,13 +454,11 @@ class Dump extends \yii\base\Component
         $unidentifiedCount  = $this->statistics[4][7]             ?? 'Ошибка';
 
         if (!file_exists(Yii::getAlias('@runtime/logs'))) {
-            if (!mkdir(Yii::getAlias('@runtime/logs'), 0755, true)) {
-                // throw new Exception('Не удалось создать каталог');
-            }
+            mkdir(Yii::getAlias('@runtime/logs'), 0755, true);
         }
         $file = fopen(Yii::getAlias('@runtime/logs') . '/' . $date . uniqid('_DUMPER_', true) . '.log', 'a+');
 
-        if (!fwrite($file, <<<EOT
+        fwrite($file, <<<EOT
 ///////////////////////////////////////////////////////////
 ///                Статистика выполнения                ///
 ///////////////////////////////////////////////////////////
@@ -520,14 +493,10 @@ class Dump extends \yii\base\Component
 
 ///////////////////////////////////////////////////////////
 EOT
-)) {
-            // throw new Exception('Не удалось записать статистику');
-        }
+        );
         fclose($file);
 
         unset($i, $date, $dateFull, $file); // Очистка на всякий случай, так как переменные остаются
-
-        // return true;
     }
 
     /**
@@ -559,14 +528,13 @@ EOT
 
             $uri = $this->initLink($link);
 
-            // !!!!!!!!!!!!!!!!!!!!!!!
-            preg_match_all('/\/\/(.*)((\/|$).*$)/U', $uri, $uriMatch);
-            preg_match_all('/\/\/(.*)((\/|$).*$)/U', $this->target, $targetMatch);
+            preg_match_all('/(\/\/|\\\\)(.*)((\/|\\\|$).*$)/U', $uri, $uriMatch);
+            preg_match_all('/(\/\/|\\\\)(.*)((\/|\\\|$).*$)/U', $this->target, $targetMatch);
 
-            if ($targetMatch[1][0] === $uriMatch[1][0]) {
+            if ($targetMatch[2][0] === $uriMatch[2][0]) {
                 $location = '';
             } else {
-                $location = Yii::$app->params['externalLinksPath'] . '/' . $uriMatch[1][0];
+                $location = Yii::$app->params['externalLinksPath'] . '/' . $uriMatch[2][0];
             }
             unset($uriMatch, $targetMatch);
 
@@ -590,10 +558,8 @@ EOT
                 }
 
                 // Обновление статистики
-                // if (YII_DEBUG) {
-                    $this->statistics[4][0]++;
-                    $this->statistics[4][5]++;
-                // }
+                $this->statistics[4][0]++;
+                $this->statistics[4][5]++;
             } else if (preg_match('/\\.js/i', $uri)) {
                 // Если это JS файл
 
@@ -606,10 +572,8 @@ EOT
                 }
 
                 // Обновление статистики
-                // if (YII_DEBUG) {
-                    $this->statistics[4][0]++;
-                    $this->statistics[4][6]++;
-                // }
+                $this->statistics[4][0]++;
+                $this->statistics[4][6]++;
             } else if (preg_match('/(\\.png|\\.jpeg|\\.jpg|\\.webp|\\.gif|\\.svg|\\.ico)/i', $uri)) {
                 // Если это изображение
 
@@ -622,10 +586,8 @@ EOT
                 }
 
                 // Обновление статистики
-                // if (YII_DEBUG) {
-                    $this->statistics[4][0]++;
-                    $this->statistics[4][2]++;
-                // }
+                $this->statistics[4][0]++;
+                $this->statistics[4][2]++;
             } else if (preg_match('/(https?:(\/\/|\\\\).+(\/|\\\).+|^(\/|\\\).+)(\.(?!php|htm)[A-z0-9]+)[^\/\\\s]*$/i', $uri)) {
                 // Если это неопознанный документ (очень затратное выражение, но по другому никак)
 
@@ -638,10 +600,8 @@ EOT
                 }
 
                 // Обновление статистики
-                // if (YII_DEBUG) {
-                    $this->statistics[4][0]++;
-                    $this->statistics[4][7]++;
-                // }
+                $this->statistics[4][0]++;
+                $this->statistics[4][7]++;
             } else if (preg_match_all('/(\/\/|\\\\)(.*)((\/|\\|$).*$)/U', $uri, $uriMatch)) {
                 // Иначе, если это обрабатывается универсально или как HTML документ
 
@@ -668,33 +628,22 @@ EOT
                     $links[$rawLink][2] = $links[$rawLink][1] . '/index.html';
                 }
 
-                // Прибавление количеству найденных страниц
-                // if (YII_DEBUG) {
-                    $this->statistics[3][0]++;
-                // }
-            } else {
-                // Иначе, ссылку не удалось инициализировать, пропуск
-
-                // throw new Exception('Не удалось идентифицировать сохранённую ссылку: '.$link)
+                // Прибавление к количеству найденных страниц
+                $this->statistics[3][0]++;
             }
 
             // Удаление обработанной ссылки и оставшихся переменных
             unset($links[$this->linksNew], $rawLink, $location, $uriSplit, $match, $file, $uri);
 
-            // Прибавление количеству обработанных ссылок
-            // if (YII_DEBUG) {
-                $this->statistics[2][1]++;
-            // }
+            // Прибавление к количеству обработанных ссылок
+            $this->statistics[2][1]++;
 
             // Подготовка к следующей итерации цикла
             $this->linksNew--;
         }
 
         // Количество обработанных ссылок без дубликатов
-        // if (YII_DEBUG) {
-            // Количество обработанных ссылок без дубликатов
-            $this->statistics[2][2] = count($this->links);
-        // }
+        $this->statistics[2][2] = count($this->links);
 
         return $links;
     }
@@ -743,8 +692,6 @@ EOT
                         // Определяем вложенность страницы
                         if (preg_match_all('/([^\\\|\/|\\s]+)/', $this->links[$link][1], $urlMatch)) {
                             $catalogsDepth = count($urlMatch[1]);
-                        } else {
-                            // throw new Exception('Ошибка при инъекции <base>: не удалось посчитать вложенность страницы');
                         }
                         
                         $content = $contentMatch[1][0] . "\n<base href=\"" . str_repeat('../', $catalogsDepth ?? 0) . '">'. $contentMatch[2][0];
@@ -754,12 +701,8 @@ EOT
                     if (file_put_contents(Yii::$app->params['basePath'] . $this->links[$link][1] . $this->links[$link][0], $content)) {
                         unset($this->files[$link]);
 
-                        // Прибавление количеству конвертированных страниц
-                        // if (YII_DEBUG) {
-                            $this->statistics[3][1]++;
-                        // }
-                    } else {
-                        // throw new Exception('Не удалось сохранить файл');
+                        // Прибавление к количеству конвертированных страниц
+                        $this->statistics[3][1]++;
                     }
                 }
             } else if ($file[0] !== 0) {
@@ -768,6 +711,7 @@ EOT
                 unset($this->files[$link]);
             } else {
                 // Иначе воспринимается как не HTML документ, который не требует конвертацию
+
                 continue;
             }
         }
@@ -832,11 +776,13 @@ EOT
         } else if ($link === '/' || $link === '\\') {
             // Иначе, если ссылка ведёт на главную страницу сайта
 
-            // [!!!] Это надо переработать, так как ссылка '/' можеть быть и на стороннем хосте [!!!]
-            $uri = $this->connectionProtocol . ':' . '//' . $this->connectionHost;
+            if (!$this->searchExternal) {
+                $uri = $this->connectionProtocol . ':' . '//' . $this->connectionHost;
+            }
 
-            // Иначе всё обрабатывается как ссылка на текущего хоста
         } else {
+            // Иначе всё обрабатывается как ссылка на текущего хоста
+
             if (!preg_match('/^(\/|\\\)/', $link)) {
                 $link = '/' . $link;
             }
