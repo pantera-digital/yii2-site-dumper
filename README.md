@@ -1,5 +1,4 @@
 # YII Dumper
-***
 Parsing HTML pages at a given depth
 ```sh
 $ yii dump https://domain.zone/foo $DEPTH $BUFFER $FORCE $EXTERNAL $ANOTHER_PATH
